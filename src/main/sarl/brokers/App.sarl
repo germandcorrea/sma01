@@ -11,6 +11,7 @@ import io.sarl.core.DefaultContextInteractions
 import java.util.HashMap
 import java.util.LinkedList
 import io.sarl.lang.core.Address
+import io.sarl.core.Schedules
 
 /** 
  * @author gdc
@@ -260,10 +261,11 @@ agent BrokerAgent {
 }
 
 agent ClienteAgent {
-	uses DefaultContextInteractions,Logging
+	uses DefaultContextInteractions,Logging,Lifecycle
 	var nombre: String
 	on Initialize {
 		this.nombre = occurrence.parameters.get(0).toString()
+		info(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
 		info("[ClienteAgent.Initialize] Iniciando Cliente " + this.nombre)
 		emit(new ProductRequest(DatosAleatorios.producto.toString,DatosAleatorios.criterio.toString,this.nombre))
 	}
@@ -278,11 +280,13 @@ agent ClienteAgent {
 				occurrence.delay,
 				occurrence.proveedor
 			))
+		info("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+		killMe
 	}
 }
 
 agent BrokersAppAgent {
-	uses Lifecycle,Logging
+	uses Lifecycle,Logging,Schedules
 
 	on Initialize {
 		info("[BrokersAppAgent.Initialize] Iniciando App")
@@ -294,11 +298,11 @@ agent BrokersAppAgent {
 		//iniciar el broker
 		spawn(BrokerAgent)
 		
-		//iniciar un cliente
-		spawn(ClienteAgent, DatosAleatorios.cliente)
-		spawn(ClienteAgent, DatosAleatorios.cliente)
+		//iniciar un cliente cada 5 segundos
+		every(5.seconds)[spawn(ClienteAgent, DatosAleatorios.cliente)]
 		
-		killMe
+		//killMe en 2 minutos
+		in(2.minutes)[killMe]
 	}
 
 }
