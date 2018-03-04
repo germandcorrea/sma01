@@ -1,0 +1,68 @@
+/** 
+ * 
+ */
+package ping.pong
+
+import io.sarl.core.Initialize
+import io.sarl.core.Lifecycle
+import io.sarl.core.DefaultContextInteractions
+import io.sarl.core.Schedules
+import io.sarl.core.Logging
+
+/** 
+ * @author gdc
+ * 
+ */
+event Ping {
+	val index : int
+
+	new(i : int) {
+		this.index = i
+	}
+}
+
+event Pong {
+	val index : int
+
+	new(i : int) {
+		this.index = i
+	}
+}
+
+agent PingAgent {
+	uses DefaultContextInteractions, Schedules,Logging
+
+	on Pong {
+		info("PingAgent->Pong " + occurrence.index)
+		emit(new Ping(occurrence.index + 1))[it == occurrence.source]
+	}
+
+	on Initialize {
+		val task = task("waiting_for_partner")
+        task.every(1000) [
+            if (defaultSpace.participants.size > 1) {
+				emit(new Ping(0))
+				task.cancel
+			}
+		]
+	}
+}
+
+agent PongAgent {
+	uses DefaultContextInteractions,Logging
+
+	on Ping {
+		info("PongAgent->Ping "+occurrence.index)
+		emit(new Pong(occurrence.index))[it == occurrence.source]
+	}
+}
+
+agent App {
+	uses Lifecycle
+
+	on Initialize {
+		spawn(PongAgent)
+		spawn(PingAgent)
+		killMe
+	}
+}

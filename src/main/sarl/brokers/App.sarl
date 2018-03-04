@@ -1,0 +1,304 @@
+/** 
+ * 
+ */
+package brokers
+
+import io.sarl.core.Initialize
+import io.sarl.core.Logging
+import io.sarl.core.Lifecycle
+import java.util.concurrent.ThreadLocalRandom
+import io.sarl.core.DefaultContextInteractions
+import java.util.HashMap
+import java.util.LinkedList
+import io.sarl.lang.core.Address
+
+/** 
+ * @author gdc
+ * 
+ */
+
+enum Proveedores {
+	PROVEEDORA,
+	PROVEEDORB,
+	PROVEEDORC
+}
+
+enum Clientes{
+	GERMAN,
+	DAVID,
+	ELIZABET,
+	LAUTARO
+}
+
+enum Productos{	
+	CARTERA,
+	ZAPATOS,
+	CINTURON,
+	BOTAS
+}
+
+enum Criterios{
+	PRECIO,
+	TIEMPO
+}
+
+final class DatosAleatorios {
+	public static def getProducto() : Productos {
+		val i = ThreadLocalRandom.current().nextInt(0, Productos.values.length);
+		return Productos.values.get(i)
+	}
+
+	public static def getCliente() : Clientes {
+		val i = ThreadLocalRandom.current().nextInt(0, Clientes.values.length);
+		return Clientes.values.get(i)
+	}
+
+	public static def getCriterio() : Criterios {
+		val i = ThreadLocalRandom.current().nextInt(0, Criterios.values.length);
+		return Criterios.values.get(i)
+	}
+	
+	//tiene el precio más bajo pero tarda mucho
+	public static def getCatalogoProveedorA(){
+		val catalogo = new HashMap<String,Item>()
+		catalogo.put(Productos.CARTERA.toString	,new Item(Productos.CARTERA.toString	,700	,5))
+		catalogo.put(Productos.ZAPATOS.toString	,new Item(Productos.ZAPATOS.toString	,2000	,5))
+		catalogo.put(Productos.CINTURON.toString,new Item(Productos.CINTURON.toString	,300	,5))
+		catalogo.put(Productos.BOTAS.toString	,new Item(Productos.BOTAS.toString		,2500	,5))
+		return catalogo
+	}
+
+	public static def getCatalogoProveedorB() {
+		val catalogo = new HashMap<String, Item>()
+		catalogo.put(Productos.CARTERA.toString	,new Item(Productos.CARTERA.toString	,800	,3))
+		catalogo.put(Productos.ZAPATOS.toString	,new Item(Productos.ZAPATOS.toString	,2100	,3))
+		catalogo.put(Productos.CINTURON.toString,new Item(Productos.CINTURON.toString	,400	,3))
+		catalogo.put(Productos.BOTAS.toString	,new Item(Productos.BOTAS.toString		,2600	,3))
+		return catalogo
+	}
+	
+	//tiene el precio más alto pero entrega al día siguiente
+	public static def getCatalogoProveedorC() {
+		val catalogo = new HashMap<String, Item>()
+		catalogo.put(Productos.CARTERA.toString ,new Item(Productos.CARTERA.toString	,1200	,1))
+		catalogo.put(Productos.ZAPATOS.toString ,new Item(Productos.ZAPATOS.toString	,2500	,1))
+		catalogo.put(Productos.CINTURON.toString,new Item(Productos.CINTURON.toString	,800	,1))
+		catalogo.put(Productos.BOTAS.toString   ,new Item(Productos.BOTAS.toString		,3000	,1))
+		return catalogo
+	}
+}
+
+final class Item{
+	var sku:String
+	var price:int
+	var delay:int
+	new(s:String,p:int,d:int){
+		this.sku=s
+		this.price=p
+		this.delay=d
+	}
+	public def getSku(){
+		return this.sku
+	}
+	public def getPrice(){
+		return this.price
+	}
+	public def getDelay(){
+		return this.delay
+	}
+}
+
+
+event ProductRequest {
+	var sku  : String
+	var criterio : String
+	var cliente : String
+	new(s:String, c:String, cl:String){
+		this.sku=s
+		this.criterio=c
+		this.cliente=cl
+	}
+}
+
+event MejorProducto {
+	var sku : String
+	var price: int
+	var delay: int
+	var proveedor: String
+	var criterio: String
+	new (s:String,p:int,d:int,pr:String,cr:String){
+		this.sku = s
+		this.price = p
+		this.delay = d
+		this.proveedor = pr
+		this.criterio = cr
+	}
+}
+
+event CotizarProducto {
+	var sku : String
+	var index:int
+	new(s : String,i:int) {
+		this.sku = s
+		this.index=i
+	}
+}
+
+event ProductoCotizado{
+	var sku :String
+	var price :int
+	var delay :int
+	var proveedor : String
+	var index :int
+	new(id:int,i : Item,p:String) {
+		this.sku = i.sku
+		this.price = i.price
+		this.delay = i.delay
+		this.proveedor =p
+		this.index =id
+	}
+}
+
+agent ProveedorAgent{
+	uses DefaultContextInteractions,Logging
+	var nombreProveedor:String
+	var catalogo: HashMap<String,Item>
+	on Initialize {
+		this.nombreProveedor=occurrence.parameters.get(0).toString()
+		info("[ProveedorAgent.Initialize] Iniciando Proveedor " + this.nombreProveedor)
+		this.catalogo = occurrence.parameters.get(1) as HashMap<String, Item> 
+	}
+	on CotizarProducto{
+		info(
+			String.format("[ProveedorAgent.CotizarProducto] Proveedor: %s cotizando producto %s", this.nombreProveedor,
+				occurrence.sku))
+		val prod = this.catalogo.get(occurrence.sku)
+		emit(new ProductoCotizado(occurrence.index,prod,this.nombreProveedor))[it == occurrence.source]
+	}
+}
+
+agent BrokerAgent {
+	uses DefaultContextInteractions,Logging
+	var prodsRequest :HashMap
+	var index :int
+	on Initialize {
+		info("[BrokerAgent.Initialize]Iniciando Broker")
+		this.prodsRequest=new HashMap
+		this.index=0
+	}
+	on ProductRequest{
+		info(
+			String.format(
+				"[BrokerAgent.ProductRequest] Broker atendiendo solicitud de cliente %s producto %s criterio %s",
+				occurrence.cliente,
+				occurrence.sku,
+				occurrence.criterio
+				)
+			)
+		this.index++
+		emit(new CotizarProducto(occurrence.sku,this.index))
+		val req=new HashMap
+		req.put("SKU", occurrence.sku)
+		req.put("CRITERIO", occurrence.criterio)
+		req.put("CLIENTE",occurrence.source)
+		prodsRequest.put(this.index,req)
+	}
+	on ProductoCotizado{
+		info(
+			String.format(
+				"[BrokerAgent.ProductoCotizado] proveedor %s producto %s precio %s demora %s",
+				occurrence.proveedor,
+				occurrence.sku,
+				occurrence.price,
+				occurrence.delay
+			)
+		)
+		val cotizacion = new HashMap
+		cotizacion.put("PROVEEDOR", occurrence.source)
+		cotizacion.put("PROVEEDOR-NOMBRE", occurrence.proveedor)
+		cotizacion.put("ITEM",new Item(occurrence.sku, occurrence.price, occurrence.delay))
+		
+		val req = prodsRequest.get(occurrence.index) as HashMap<String, Object>
+		val criterio = Criterios.valueOf(req.get("CRITERIO").toString)
+		val cliente = req.get("CLIENTE") as Address
+		var lstCotizacion = req.get("LST-COTIZACION") as LinkedList<HashMap<String,Object>>
+		if(lstCotizacion === null){
+			lstCotizacion = new LinkedList
+			req.put("LST-COTIZACION",lstCotizacion)
+		} // if(lstCotizacion == null)
+		lstCotizacion.add(cotizacion)
+		//si todos los proveedores cotizaron
+		if(lstCotizacion.size() == Proveedores.values.length){
+			var ganador : HashMap<String, Object>
+			
+			for(c: lstCotizacion){
+				val cot = c as HashMap<String,Object>
+				if(ganador===null){
+					ganador=cot
+				} else {
+					val itemActual = cot.get("ITEM") as Item
+					val itemGanador = ganador.get("ITEM") as Item
+					if(criterio.equals(Criterios.PRECIO)){
+						if (itemGanador.price > itemActual.price) {
+							ganador = cot
+						}
+					} else if (criterio.equals(Criterios.TIEMPO)){
+						if (itemGanador.delay > itemActual.delay) {
+							ganador = cot
+						}
+					}
+				}			
+			}// for(cot: lstCotizacion)
+			
+			//enviar el evento al cliente con los datos del ganador
+			val item = ganador.get("ITEM") as Item
+			val proveedor = ganador.get("PROVEEDOR-NOMBRE") as String
+			emit(new MejorProducto(item.sku,item.price,item.delay,proveedor,criterio.toString))[it.UUID == cliente.UUID]
+			
+		} // if(lstCotizacion.size() == Proveedores.values.length)
+	} // on ProductoCotizado
+}
+
+agent ClienteAgent {
+	uses DefaultContextInteractions,Logging
+	var nombre: String
+	on Initialize {
+		this.nombre = occurrence.parameters.get(0).toString()
+		info("[ClienteAgent.Initialize] Iniciando Cliente " + this.nombre)
+		emit(new ProductRequest(DatosAleatorios.producto.toString,DatosAleatorios.criterio.toString,this.nombre))
+	}
+	on MejorProducto {
+		info(
+			String.format(
+				"[ClienteAgent.MejorProducto] cliente %s mejor producto %s criterio %s precio %s delay %s proveedor %s",
+				this.nombre,
+				occurrence.sku,
+				occurrence.criterio,
+				occurrence.price,
+				occurrence.delay,
+				occurrence.proveedor
+			))
+	}
+}
+
+agent BrokersAppAgent {
+	uses Lifecycle,Logging
+
+	on Initialize {
+		info("[BrokersAppAgent.Initialize] Iniciando App")
+		//iniciar cada proveedor con su catalogo
+		spawn(ProveedorAgent, Proveedores.PROVEEDORA, DatosAleatorios.catalogoProveedorA)
+		spawn(ProveedorAgent, Proveedores.PROVEEDORB, DatosAleatorios.catalogoProveedorB)
+		spawn(ProveedorAgent, Proveedores.PROVEEDORC, DatosAleatorios.catalogoProveedorC)
+		
+		//iniciar el broker
+		spawn(BrokerAgent)
+		
+		//iniciar un cliente
+		spawn(ClienteAgent, DatosAleatorios.cliente)
+		spawn(ClienteAgent, DatosAleatorios.cliente)
+		
+		killMe
+	}
+
+}

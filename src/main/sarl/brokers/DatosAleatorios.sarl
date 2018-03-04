@@ -1,0 +1,29 @@
+/** 
+ * 
+ */
+package brokers
+
+import java.util.concurrent.ThreadLocalRandom
+
+/** 
+ * @author gdc
+ * 
+ */
+ /*
+class DatosAleatorios {
+	public static def getProducto() : Productos {
+		val i = ThreadLocalRandom.current().nextInt(0, Productos.values.length);
+		return Productos.values.get(i) 
+	}
+
+	public static def getCliente() : Clientes {
+		val i = ThreadLocalRandom.current().nextInt(0, Clientes.values.length);
+		return Clientes.values.get(i)
+	}
+
+	public static def getCriterio() : Criterios {
+		val i = ThreadLocalRandom.current().nextInt(0, Criterios.values.length);
+		return Criterios.values.get(i)
+	}
+}
+*/
